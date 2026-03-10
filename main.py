@@ -1185,18 +1185,28 @@ async def auth_linuxdo_callback(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=20, follow_redirects=True) as oauth_client:
+        async with httpx.AsyncClient(
+            timeout=20,
+            follow_redirects=True,
+            proxy=(PROXY_FOR_AUTH or None),
+            verify=False,
+        ) as oauth_client:
             token_resp = await oauth_client.post(
                 LINUXDO_TOKEN_URL,
                 data=token_payload,
                 headers={"Accept": "application/json"},
             )
             if token_resp.status_code >= 400:
-                logger.warning(f"[AUTH] LinuxDO token exchange failed: HTTP {token_resp.status_code}")
+                logger.warning(
+                    "[AUTH] LinuxDO token exchange failed: HTTP %s, body=%s",
+                    token_resp.status_code,
+                    token_resp.text[:300],
+                )
                 return RedirectResponse(url=_build_oauth_login_redirect_url("OAuth token exchange failed"), status_code=302)
             token_data = token_resp.json()
             access_token = str(token_data.get("access_token") or "").strip()
             if not access_token:
+                logger.warning("[AUTH] LinuxDO token exchange missing access_token: %s", token_data)
                 return RedirectResponse(url=_build_oauth_login_redirect_url("OAuth access token missing"), status_code=302)
 
             profile_resp = await oauth_client.get(
@@ -1207,11 +1217,18 @@ async def auth_linuxdo_callback(
                 },
             )
             if profile_resp.status_code >= 400:
-                logger.warning(f"[AUTH] LinuxDO userinfo failed: HTTP {profile_resp.status_code}")
+                logger.warning(
+                    "[AUTH] LinuxDO userinfo failed: HTTP %s, body=%s",
+                    profile_resp.status_code,
+                    profile_resp.text[:300],
+                )
                 return RedirectResponse(url=_build_oauth_login_redirect_url("OAuth userinfo failed"), status_code=302)
             profile = profile_resp.json()
+    except httpx.RequestError as exc:
+        logger.warning("[AUTH] LinuxDO OAuth request error: %s", repr(exc))
+        return RedirectResponse(url=_build_oauth_login_redirect_url("OAuth request failed"), status_code=302)
     except Exception as exc:
-        logger.warning(f"[AUTH] LinuxDO OAuth callback exception: {exc}")
+        logger.warning("[AUTH] LinuxDO OAuth callback exception: %s", repr(exc))
         return RedirectResponse(url=_build_oauth_login_redirect_url("OAuth request failed"), status_code=302)
 
     subject = str(profile.get("id") or profile.get("sub") or profile.get("user_id") or "").strip()
