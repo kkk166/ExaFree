@@ -26,6 +26,9 @@
         </div>
 
         <form v-if="mode === 'login'" @submit.prevent="handleLogin" class="mt-6 space-y-4">
+          <div v-if="!canPasswordLogin" class="rounded-2xl bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
+            当前已关闭账号密码登录
+          </div>
           <div class="space-y-2">
             <label class="block text-sm font-medium text-foreground">用户名</label>
             <input
@@ -34,7 +37,7 @@
               required
               class="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="admin 或普通用户名"
-              :disabled="isLoading"
+              :disabled="isLoading || !canPasswordLogin"
             />
           </div>
           <div class="space-y-2">
@@ -45,7 +48,7 @@
               required
               class="w-full rounded-2xl border border-input bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
               placeholder="请输入密码"
-              :disabled="isLoading"
+              :disabled="isLoading || !canPasswordLogin"
             />
           </div>
 
@@ -55,7 +58,7 @@
 
           <button
             type="submit"
-            :disabled="isLoading || !username || !password"
+            :disabled="isLoading || !username || !password || !canPasswordLogin"
             class="w-full rounded-2xl bg-primary py-3 text-sm font-medium text-primary-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {{ isLoading ? '登录中...' : '登录' }}
@@ -153,6 +156,7 @@ const registerResult = ref('')
 const authOptions = ref<AuthOptionsResponse | null>(null)
 
 const registrationEnabled = computed(() => authOptions.value?.registration_enabled ?? true)
+const canPasswordLogin = computed(() => authOptions.value?.password_login_enabled ?? true)
 const canPasswordRegister = computed(
   () => (authOptions.value?.registration_enabled ?? true) && (authOptions.value?.password_registration_enabled ?? true)
 )
@@ -174,6 +178,7 @@ async function loadAuthOptions() {
   } catch {
     authOptions.value = {
       registration_enabled: true,
+      password_login_enabled: true,
       password_registration_enabled: true,
       linuxdo_oauth_registration_enabled: true,
       linuxdo_oauth_login_enabled: false,
@@ -197,6 +202,10 @@ async function handleLinuxdoOauth() {
 }
 
 async function handleLogin() {
+  if (!canPasswordLogin.value) {
+    errorMessage.value = '当前未启用账号密码登录'
+    return
+  }
   if (!username.value || !password.value) return
   errorMessage.value = ''
   isLoading.value = true

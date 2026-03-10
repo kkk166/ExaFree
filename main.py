@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 import httpx
 from fastapi import FastAPI, HTTPException, Header, Request, Body, Form, Response, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, FileResponse
+from fastapi.responses import JSONResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from collections import deque
 from threading import Lock
@@ -377,6 +377,7 @@ RETRY_POLICY = build_retry_policy()
 def _default_user_auth_policy() -> dict:
     return {
         "registration_enabled": True,
+        "password_login_enabled": True,
         "password_registration_enabled": True,
         "linuxdo_oauth_registration_enabled": True,
         "limits": {
@@ -400,6 +401,7 @@ def _sanitize_user_auth_policy(raw: Optional[dict]) -> dict:
         return base
     out = dict(base)
     out["registration_enabled"] = bool(raw.get("registration_enabled", base["registration_enabled"]))
+    out["password_login_enabled"] = bool(raw.get("password_login_enabled", base["password_login_enabled"]))
     out["password_registration_enabled"] = bool(
         raw.get("password_registration_enabled", base["password_registration_enabled"])
     )
@@ -553,8 +555,9 @@ async def lifespan(app: FastAPI):
         if legacy_import.get("created"):
             logger.info("[AUTH] 已迁移旧版固定兑换码到新兑换码表")
     logger.info(
-        "[AUTH] 用户策略: register=%s pwd_register=%s oauth_register=%s user(daily=%s,%sm/%s) premium(daily=%s,%sm/%s)",
+        "[AUTH] 用户策略: register=%s pwd_login=%s pwd_register=%s oauth_register=%s user(daily=%s,%sm/%s) premium(daily=%s,%sm/%s)",
         USER_AUTH_POLICY["registration_enabled"],
+        USER_AUTH_POLICY["password_login_enabled"],
         USER_AUTH_POLICY["password_registration_enabled"],
         USER_AUTH_POLICY["linuxdo_oauth_registration_enabled"],
         USER_AUTH_POLICY["limits"]["user"]["daily_limit"],
@@ -1106,6 +1109,7 @@ async def auth_me(request: Request):
 async def auth_options():
     _require_user_storage()
     registration_enabled = bool(USER_AUTH_POLICY.get("registration_enabled", True))
+    password_login_enabled = bool(USER_AUTH_POLICY.get("password_login_enabled", True))
     password_registration_enabled = bool(USER_AUTH_POLICY.get("password_registration_enabled", True))
     linuxdo_oauth_registration_enabled = bool(
         USER_AUTH_POLICY.get("linuxdo_oauth_registration_enabled", True)
@@ -1113,6 +1117,7 @@ async def auth_options():
     oauth_ready = _linuxdo_oauth_ready()
     return {
         "registration_enabled": registration_enabled,
+        "password_login_enabled": password_login_enabled,
         "password_registration_enabled": password_registration_enabled,
         "linuxdo_oauth_registration_enabled": linuxdo_oauth_registration_enabled,
         "linuxdo_oauth_login_enabled": oauth_ready,
@@ -1310,6 +1315,8 @@ async def user_register(payload: dict = Body(...)):
 async def user_login(request: Request, payload: dict = Body(...)):
     """门户登录（管理员/普通用户/高级用户）。"""
     _require_user_storage()
+    if not USER_AUTH_POLICY.get("password_login_enabled", True):
+        raise HTTPException(403, "Password login is disabled")
     username = normalize_username(payload.get("username"))
     password = payload.get("password") or ""
 
@@ -1572,6 +1579,8 @@ async def admin_update_user_policy(request: Request, payload: dict = Body(...)):
     payload = payload or {}
     if "registration_enabled" in payload:
         merged["registration_enabled"] = payload.get("registration_enabled")
+    if "password_login_enabled" in payload:
+        merged["password_login_enabled"] = payload.get("password_login_enabled")
     if "password_registration_enabled" in payload:
         merged["password_registration_enabled"] = payload.get("password_registration_enabled")
     if "linuxdo_oauth_registration_enabled" in payload:

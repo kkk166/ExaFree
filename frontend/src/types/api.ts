@@ -320,6 +320,7 @@ export interface AdminUsersResponse {
 
 export interface UserPolicy {
   registration_enabled: boolean
+  password_login_enabled: boolean
   password_registration_enabled: boolean
   linuxdo_oauth_registration_enabled: boolean
   limits: {
@@ -338,6 +339,7 @@ export interface UserPolicy {
 
 export interface AuthOptionsResponse {
   registration_enabled: boolean
+  password_login_enabled: boolean
   password_registration_enabled: boolean
   linuxdo_oauth_registration_enabled: boolean
   linuxdo_oauth_login_enabled: boolean

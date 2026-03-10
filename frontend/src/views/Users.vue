@@ -8,6 +8,10 @@
           允许用户注册
         </label>
         <label class="flex items-center gap-2 text-sm text-foreground">
+          <input v-model="policy.password_login_enabled" type="checkbox" class="h-4 w-4" />
+          允许账号密码登录
+        </label>
+        <label class="flex items-center gap-2 text-sm text-foreground">
           <input
             v-model="policy.password_registration_enabled"
             type="checkbox"
@@ -266,6 +270,7 @@ const createdApiKey = ref('')
 
 const policy = reactive<UserPolicy>({
   registration_enabled: true,
+  password_login_enabled: true,
   password_registration_enabled: true,
   linuxdo_oauth_registration_enabled: true,
   limits: {
